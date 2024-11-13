@@ -22,12 +22,12 @@ void displayFileInfo(struct ffblk file) {
     int hour = (file.ff_ftime >> 11) & 0x1F;
     int minute = (file.ff_ftime >> 5) & 0x3F;
 
-    // Chuyển đổi định dạng 12 giờ với ký tự 'a' hoặc 'p' để giống như MS-DOS
+
     char period = (hour >= 12) ? 'p' : 'a';
     if (hour > 12) hour -= 12;
     if (hour == 0) hour = 12;
 
-    // Hiển thị định dạng ngày tháng và giờ phút
+
     cout << (month < 10 ? "0" : "") << month << "-"
          << (day < 10 ? "0" : "") << day << "-"
          << year << "  "
@@ -42,14 +42,14 @@ int main() {
     int file_count = 0;
     int dir_count = 0;
 
-    // Khởi đầu chương trình với thông báo giống dir
+
     cout << " Volume in drive C has no label." << endl;
     cout << " Directory of C:\\*.*" << endl << endl;
 
-    // Tìm các tệp tin trong thư mục hiện tại
+
     done = findfirst("*.*", &file, FA_ARCH | FA_DIREC);
 
-    // Duyệt qua tất cả các tệp tin và thư mục tìm thấy
+   
     while (!done) {
         displayFileInfo(file);
         if (file.ff_attrib & FA_DIREC) {
@@ -61,10 +61,10 @@ int main() {
         done = findnext(&file);
     }
 
-    // Hiển thị tổng kết số lượng tệp tin và thư mục
     cout << "              " << file_count << " file(s)\t    " << total_size << " bytes" << endl;
     cout << "              " << dir_count << " dir(s)\t" << "95,219,712 bytes free" << endl;
 
     getch();
     return 0;
 }
+

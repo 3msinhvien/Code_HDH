@@ -1,10 +1,10 @@
-#include <stdio.h>
-#include <conio.h>
 #include <dos.h>
+#include <memory.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdio.h>
 
-struct BOOT {
+struct BOOT {  // Cau truc boot cho FAT16
     char jmp[3];
     char OEM[8];
     int bytes_per_sector;
@@ -27,7 +27,7 @@ struct BOOT {
     char mark[2];
 };
 
-struct ROOT {
+struct ROOT {  // Cau truc thong tin cua tep trong ROOT
     char name[8];
     char ext[3];
     char attr;
@@ -38,80 +38,95 @@ struct ROOT {
     long size;
 };
 
-void main() {
-    int drive = 3; // Dung o dia D (A=0, B=1, C=2, D=3 ...)
-    BOOT boot;
-    
+int main() {
+    int drive = 3;  // A=0, B=1, C=2, D=3 (o D)
+
     // Doc boot sector tu o dia
+    BOOT boot;
     int res = absread(drive, 1, 0, &boot);
-    if(res != 0) {
+    if(res != 0){
         printf("Khong the doc boot sector\n");
-        return;
+        return 1;
     }
 
-    // Tinh toan kich thuoc bang FAT va doc bang FAT
-    int FAT_size_in_bytes = boot.FAT_size * boot.bytes_per_sector;
-    unsigned int *fat = (unsigned int *)malloc(FAT_size_in_bytes);
+    // Doc bang FAT
+    unsigned int *fat = (unsigned int *)malloc (boot.FAT_size * boot.bytes_per_sector);
     if (fat == NULL) {
         printf("Khong du bo nho\n");
-        return;
+        return 1;
     }
+
     res = absread(drive, boot.FAT_size, boot.reserved, fat);
-    if(res != 0) {
-        printf("Khong the doc bang FAT\n");
+    if(res != 0){
+        printf("Khong the doc FAT\n");
         free(fat);
-        return;
+        return 1;
     }
 
-    // Tinh toan kich thuoc cua thu muc goc (ROOT) va vi tri bat dau cua no
-    int root_size_in_bytes = boot.ROOT_size * 32; // Moi muc thu muc goc chiem 32 byte
-    int root_start_sector = boot.reserved + boot.FAT_cnt * boot.FAT_size;
+    // Doc vung ROOT
+    int num_byte = boot.ROOT_size * 32;  // kich thuoc cua ROOT (32 byte cho moi muc)
+    ROOT *root = (ROOT *)malloc(num_byte);
+    if(root == NULL) return 1;
 
-    // Cap phat bo nho cho thu muc goc va doc ROOT
-    ROOT *root = (ROOT *)malloc(root_size_in_bytes);
-    if(root == NULL) {
-        printf("Khong du bo nho\n");
-        free(fat);
-        return;
-    }
-    int root_sector_count = root_size_in_bytes / boot.bytes_per_sector;
-    res = absread(drive, root_sector_count, root_start_sector, root);
-    if(res != 0) {
+    int num_sector = num_byte / boot.bytes_per_sector;
+    int root_begin = boot.reserved + boot.FAT_size * boot.FAT_cnt;
+
+    res = absread(drive, num_sector, root_begin, (void *)root);
+    if(res != 0){
         printf("Khong the doc ROOT\n");
         free(root);
         free(fat);
-        return;
+        return 1;
     }
 
-    // Tim file cho truoc trong ROOT
-    char filename[8] = "FILE    "; // Ten file can tim (toi da 8 ky tu, phai dien du khoang trang)
-    int start_cluster = -1;
-    for(int i = 0; i < boot.ROOT_size; i++) {
-        if (memcmp(root[i].name, filename, 8) == 0) {
-            start_cluster = root[i].first_cluster;
-            printf("Tim thay file %s bat dau tu cluster: %d\n", filename, start_cluster);
+    // Nhap ten file tu ban phim voi do dai tuy y
+    char filename[9];  // 8 ky tu cho ten file + 1 ky tu null
+    printf("Nhap ten file (khong co phan mo rong): ");
+    scanf("%8s", filename);
+
+    // Them khoang trang neu ten file khong du 8 ky tu
+    int len = strlen(filename);
+    if (len < 8) {
+        for (int i = len; i < 8; i++) {
+            filename[i] = ' ';  // Them khoang trang vao cuoi
+        }
+        filename[8] = '\0';  // Ket thuc chuoi
+    }
+
+    // Tim file trong vung ROOT
+    int i, k;
+    char str[9];
+    int first_cluster = -1;
+    for(i = 0; i < boot.ROOT_size; i++){
+        // Sao chep root[i].name sang str va them ky tu null de tao chuoi
+        for(k = 0; k < 8 && root[i].name[k] != ' '; k++)
+            str[k] = root[i].name[k];
+        str[k] = 0;
+
+        // So sanh ten file
+        if(strncmp(root[i].name, filename, 8) == 0){
+            first_cluster = root[i].first_cluster;
             break;
         }
     }
 
-    if (start_cluster == -1) {
-        printf("Khong tim thay file %s trong ROOT\n", filename);
-        free(root);
-        free(fat);
-        return;
-    }
-
-    // Duyet qua cac cluster cua file
-    printf("Danh sach cac cluster cua file %s:\n", filename);
-    unsigned int current_cluster = start_cluster;
-    while (current_cluster < 0xFFF8) { // Kiem tra cluster hop le
-        printf("%u ", current_cluster);
-        current_cluster = fat[current_cluster];
+    // In ra cac cluster cua file neu tim thay
+    if(first_cluster >= 0){
+        printf("Cac cluster thuoc ve file %s: ", filename);
+        unsigned int cur = first_cluster;
+        while(cur < 0xFFF8){
+            printf("%u ", cur);
+            cur = fat[cur];
+        }
+        printf("\n");
+    } else {
+        printf("Khong tim thay file %s\n", filename);
     }
 
     // Giai phong bo nho
     free(root);
     free(fat);
 
-    getch(); // Dung man hinh cho nguoi dung nhan phim
+    return 0;
 }
+
